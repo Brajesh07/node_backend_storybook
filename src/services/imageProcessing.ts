@@ -15,6 +15,7 @@ export interface GeneratedImage {
   chapterNumber: number;
   fullChapterText: string;
   prompt: string;
+  url?: string; // Add URL property for remote images
 }
 
 export class ImageProcessingService {
