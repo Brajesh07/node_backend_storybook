@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { v2 as cloudinary } from 'cloudinary';
 import Replicate from 'replicate';
 import { configService } from '../config';
 import { StoryAnalysis } from './storyAnalysis';
@@ -10,22 +11,35 @@ const replicate = new Replicate({
   auth: configService.config.replicateApiToken,
 });
 
+// Initialize Cloudinary if configured
+if (configService.config.cloudinaryUrl) {
+  cloudinary.config({
+    secure: true
+  });
+}
+
 export interface GeneratedImage {
   filename: string;
   chapterNumber: number;
   fullChapterText: string;
   prompt: string;
-  url?: string; // Add URL property for remote images
+  url?: string; // URL for serving the image (Cloudinary or backend)
+  cloudinaryUrl?: string; // Original Cloudinary URL
 }
 
 export class ImageProcessingService {
 
   /**
-   * Generate a single character image using Replicate API
+   * Generate a single character image using Replicate API and store in Cloudinary
    */
   async generateCharacterImage(imageUrl: string, enhancedPrompt: string): Promise<string | null> {
     if (!configService.config.replicateEnabled) {
       console.log("DEBUG: Replicate disabled - skipping image generation");
+      return null;
+    }
+
+    if (!configService.config.cloudinaryUrl) {
+      console.error("ERROR: Cloudinary not configured - cannot store images");
       return null;
     }
 
@@ -41,22 +55,48 @@ export class ImageProcessingService {
       
       const output = await replicate.run(configService.config.replicateModel, { input: payload });
       
-      // Generate unique filename
-      const outputFilename = `output_${uuidv4()}.jpg`;
+      console.log(`DEBUG: Replicate returned output type: ${typeof output}`);
+      console.log(`DEBUG: Replicate raw output:`, output);
+      
+      if (typeof output === 'string') {
+        console.log(`DEBUG: Replicate output URL: ${output}`);
+      } else {
+        console.log(`DEBUG: Replicate output is not a string, type: ${typeof output}`);
+      }
       
       // Handle different output types from Replicate
       let imageData: Buffer;
+      let replicateImageUrl: string;
       
       if (output instanceof Buffer) {
         imageData = output;
+        console.log(`DEBUG: Output is Buffer, size: ${imageData.length} bytes`);
       } else if (typeof output === 'string') {
         // If output is a URL, download the image
-        const response = await fetch(output);
+        replicateImageUrl = output;
+        console.log(`DEBUG: Output is string URL: ${replicateImageUrl}`);
+        
+        const response = await fetch(replicateImageUrl);
         if (!response.ok) {
-          throw new Error(`Failed to download image: ${response.statusText}`);
+          console.error(`❌ Failed to download from Replicate URL: ${response.status} ${response.statusText}`);
+          throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
         }
         const arrayBuffer = await response.arrayBuffer();
         imageData = Buffer.from(arrayBuffer);
+        console.log(`DEBUG: Successfully downloaded image: ${imageData.length} bytes`);
+      } else if (Array.isArray(output) && output.length > 0) {
+        // Handle array output (common with some Replicate models)
+        replicateImageUrl = output[0];
+        console.log(`DEBUG: Output is array, using first item: ${replicateImageUrl}`);
+        
+        const response = await fetch(replicateImageUrl);
+        if (!response.ok) {
+          console.error(`❌ Failed to download from Replicate URL: ${response.status} ${response.statusText}`);
+          throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        imageData = Buffer.from(arrayBuffer);
+        console.log(`DEBUG: Successfully downloaded image from array: ${imageData.length} bytes`);
       } else if (output && typeof output === 'object' && 'read' in output) {
         // File-like object
         const chunks: Uint8Array[] = [];
@@ -78,14 +118,44 @@ export class ImageProcessingService {
         }
         imageData = Buffer.concat(chunks);
       } else {
-        throw new Error(`Unexpected output type: ${typeof output}`);
+        throw new Error(`Unexpected output type: ${typeof output}, value: ${String(output).substring(0, 100)}`);
       }
       
-      // Save the image
-      fs.writeFileSync(outputFilename, imageData);
+      // Upload to Cloudinary instead of saving locally
+      const uniqueId = uuidv4();
+      const publicId = `storybook/character_${uniqueId}`;
       
-      console.log(`DEBUG: Character image saved: ${outputFilename} (${imageData.length} bytes)`);
-      return outputFilename;
+      console.log(`DEBUG: Uploading image to Cloudinary with public_id: ${publicId}`);
+      
+      // Upload buffer directly to Cloudinary
+      const cloudinaryResult = await new Promise<any>((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            public_id: publicId,
+            folder: 'storybook',
+            resource_type: 'image',
+            format: 'jpg',
+            transformation: [
+              { quality: 'auto:good' },
+              { width: 512, height: 512, crop: 'fill' }
+            ]
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        ).end(imageData);
+      });
+      
+      const cloudinaryUrl = cloudinaryResult.secure_url;
+      console.log(`DEBUG: Successfully uploaded to Cloudinary: ${cloudinaryUrl}`);
+      
+      // Return the Cloudinary URL directly since we'll serve images from Cloudinary
+      // This eliminates the need for local storage and backend image serving
+      return cloudinaryUrl;
       
     } catch (error) {
       console.error(`ERROR: Failed to generate character image: ${error}`);

@@ -6,6 +6,7 @@ export interface ChildData {
   gender: 'boy' | 'girl';
   language: string;
   parentName: string;
+  chapterCount?: number; // Optional, defaults to 8
 }
 
 export interface Chapter {
@@ -62,23 +63,27 @@ export class StoryGeneratorService {
    * Build the story generation prompt for Gemini AI
    */
   private buildStoryPrompt(childData: ChildData): string {
-    const { childName, age, gender, language } = childData;
+    const { childName, age, gender, language, chapterCount = 8 } = childData;
     
     const languageInstruction = language === 'English' 
-      ? '' 
+      ? ''
       : ` Write the story in ${language} language.`;
+
+    const totalWords = chapterCount * 135; // Average 135 words per chapter
+    const minWords = chapterCount * 120;
+    const maxWords = chapterCount * 150;
 
     return `Create a personalized adventure story for a ${age}-year-old ${gender} named ${childName}. 
 
 Requirements:
-- Story should be exactly 8 chapters long
-- Each chapter should be 2-3 paragraphs (50-75 words per chapter)
+- Story should be exactly ${chapterCount} chapters long
+- Each chapter should be 4-5 paragraphs (120-150 words per chapter)
 - Age-appropriate content for a ${age}-year-old
 - The child (${childName}) should be the main character and hero
 - Include themes of friendship, courage, kindness, and creativity
 - Make it magical and adventurous but not scary
 - Each chapter should have a clear beginning: "Chapter X: [Title]"
-- Total story should be 400-600 words
+- Total story should be ${minWords}-${maxWords} words
 ${languageInstruction}
 
 Story themes to include:
@@ -95,9 +100,7 @@ Chapter 1: [Chapter Title]
 Chapter 2: [Chapter Title]
 [Chapter content]
 
-...and so on for all 8 chapters.
-
-Make ${childName} brave, kind, and clever. The story should inspire and delight a ${age}-year-old child.`;
+...and so on for all ${chapterCount} chapters.Make ${childName} brave, kind, and clever. The story should inspire and delight a ${age}-year-old child.`;
   }
 
   /**

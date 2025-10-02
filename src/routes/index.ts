@@ -35,6 +35,7 @@ const storyGenerationSchema = Joi.object({
     'English', 'Spanish', 'Hindi', 'French', 'German', 'Chinese'
   ).required(),
   parentName: Joi.string().trim().min(1).max(50).required(),
+  chapterCount: Joi.number().integer().min(2).max(8).default(8)
 });
 
 // In-memory session storage (in production, use Redis)
@@ -272,16 +273,26 @@ router.post('/character/generate', async (req: Request, res: Response) => {
 
     const { childData, analysisResult, uploadResult } = sessionData;
     
+    console.log(`🔍 DEBUG: Session childData:`, JSON.stringify(childData, null, 2));
     console.log(`🎨 Generating character images for ${childData.childName}...`);
 
     let generatedImages: any[] = [];
     let singleImage: string | null = null;
 
-    // Skip actual image generation for now - focus on PDF generation
-    console.log(`⏭️  Skipping image generation for ${childData.childName} - focusing on PDF`);
+    // Use the user's uploaded image and chapter count from form
+    // Priority: 1) existing story chapters length, 2) childData.chapterCount, 3) default 8
+    let totalChapters = childData.chapterCount || 8;
     
-    // Always create 8 chapters and character images for the storybook
-    const totalChapters = 8;
+    // If we have existing story chapters, use that count (it should be limited by frontend)
+    if (existingStory && existingStory.chapters && existingStory.chapters.length > 0) {
+      totalChapters = existingStory.chapters.length;
+      console.log(`📚 Using existing story chapters count: ${totalChapters}`);
+    }
+    
+    console.log(`🎨 Generating ${totalChapters} character images using Replicate API...`);
+    console.log(`🔍 DEBUG: childData.chapterCount = ${childData.chapterCount}`);
+    console.log(`🔍 DEBUG: existingStory chapters = ${existingStory?.chapters?.length || 0}`);
+    console.log(`🔍 DEBUG: final totalChapters = ${totalChapters}`);
     const chapterPrompts: string[] = [];
     
     // Check if we have existing story chapters from the story generation
@@ -289,7 +300,7 @@ router.post('/character/generate', async (req: Request, res: Response) => {
     console.log(`📚 Has existing story: ${hasExistingStory}`);
     
     // Generate detailed story chapters
-    const defaultChapterStories = [
+    const allDefaultChapterStories = [
       `${childData.childName} discovers a magical door hidden behind the old oak tree in their backyard. As they push it open, a world of wonder and adventure awaits them on the other side.`,
       `Stepping through the magical door, ${childData.childName} finds themselves in an enchanted forest where the trees whisper secrets and flowers glow with their own light.`,
       `${childData.childName} meets a wise talking owl who becomes their guide. The owl tells them about an ancient treasure that can only be found by someone with a pure heart.`,
@@ -300,14 +311,17 @@ router.post('/character/generate', async (req: Request, res: Response) => {
       `With the treasure in hand and new friends by their side, ${childData.childName} returns home, knowing that the greatest adventure is the one that lives in their heart.`
     ];
     
-    // Generate 8 chapters with character images
+    // Only use the number of chapters selected by user
+    const defaultChapterStories = allDefaultChapterStories.slice(0, totalChapters);
+    
+    // Generate chapter prompts for the selected number of chapters
     for (let i = 0; i < totalChapters; i++) {
       const chapterNumber = i + 1;
       
       // Prioritize existing story chapters, then use defaults
-      let chapterText = defaultChapterStories[i]; // Default fallback
+      let chapterText = defaultChapterStories[i] || `Chapter ${chapterNumber} of ${childData.childName}'s magical adventure.`; // Default fallback with bounds check
       
-      if (hasExistingStory && sessionData.storyResult.chapters[i]) {
+      if (hasExistingStory && sessionData.storyResult.chapters && sessionData.storyResult.chapters[i]) {
         const existingChapter = sessionData.storyResult.chapters[i];
         chapterText = existingChapter.fullChapterText || existingChapter.chapterText || chapterText;
         console.log(`📖 Using existing chapter ${chapterNumber} text (${chapterText.length} chars)`);
@@ -316,31 +330,97 @@ router.post('/character/generate', async (req: Request, res: Response) => {
       }
       
       // Generate character prompt for this chapter
-      const chapterPrompt = `A magical character illustration of ${childData.childName}, a ${childData.age}-year-old ${childData.gender}, in Chapter ${chapterNumber} of their adventure story. The character should be depicted in an engaging scene that matches the chapter's theme.`;
+      const chapterPrompt = `A magical character illustration of ${childData.childName}, a ${childData.age}-year-old ${childData.gender}, in Chapter ${chapterNumber} of their adventure story. The character should be depicted in an engaging scene that matches the chapter's theme. Style: children's book illustration, colorful, friendly, magical.`;
       
       chapterPrompts.push(chapterPrompt);
     }
     
-    // Create generated images data for all 8 chapters
-    generatedImages = Array.from({ length: totalChapters }, (_, index) => {
+    // Generate actual images using Replicate API and Cloudinary
+    const imagePromises = chapterPrompts.map(async (prompt, index) => {
       const chapterNumber = index + 1;
+      console.log(`🎨 Generating image for Chapter ${chapterNumber}...`);
       
-      // Prioritize existing story chapters, then use defaults
-      let chapterText = defaultChapterStories[index]; // Default fallback
-      
-      if (hasExistingStory && sessionData.storyResult.chapters[index]) {
-        const existingChapter = sessionData.storyResult.chapters[index];
-        chapterText = existingChapter.fullChapterText || existingChapter.chapterText || chapterText;
+      try {
+        // Use the uploaded image as the base and generate character image with Replicate
+        console.log(`🔧 DEBUG: Calling generateCharacterImage for Chapter ${chapterNumber}`);
+        console.log(`🔧 DEBUG: uploadResult.url = ${uploadResult.url}`);
+        console.log(`🔧 DEBUG: prompt = ${prompt.substring(0, 100)}...`);
+        
+        const generatedImageUrl = await imageProcessingService.generateCharacterImage(
+          uploadResult.url, // Use the uploaded user image as base
+          prompt
+        );
+        
+        console.log(`🔧 DEBUG: generatedImageUrl result = ${generatedImageUrl}`);
+        
+        if (generatedImageUrl) {
+          console.log(`✅ Generated image for Chapter ${chapterNumber}: ${generatedImageUrl}`);
+          console.log(`🔧 DEBUG: generatedImageUrl type: ${typeof generatedImageUrl}`);
+          console.log(`🔧 DEBUG: generatedImageUrl starts with cloudinary: ${generatedImageUrl.startsWith('https://res.cloudinary.com')}`);
+          
+          // Get chapter text
+          let chapterText = defaultChapterStories[index] || `Chapter ${chapterNumber} of ${childData.childName}'s magical adventure.`;
+          if (hasExistingStory && sessionData.storyResult.chapters && sessionData.storyResult.chapters[index]) {
+            const existingChapter = sessionData.storyResult.chapters[index];
+            chapterText = existingChapter.fullChapterText || existingChapter.chapterText || chapterText;
+          }
+          
+          return {
+            chapterNumber,
+            filename: `chapter_${chapterNumber}_${uuidv4()}.jpg`,
+            prompt: prompt,
+            url: generatedImageUrl, // Use Cloudinary URL
+            cloudinaryUrl: generatedImageUrl,
+            fullChapterText: chapterText
+          };
+        } else {
+          console.error(`❌ Failed to generate image for Chapter ${chapterNumber}`);
+          
+          // Fallback to uploaded image
+          let chapterText = defaultChapterStories[index] || `Chapter ${chapterNumber} of ${childData.childName}'s magical adventure.`;
+          if (hasExistingStory && sessionData.storyResult.chapters && sessionData.storyResult.chapters[index]) {
+            const existingChapter = sessionData.storyResult.chapters[index];
+            chapterText = existingChapter.fullChapterText || existingChapter.chapterText || chapterText;
+          }
+          
+          return {
+            chapterNumber,
+            filename: `fallback_chapter_${chapterNumber}.jpg`,
+            prompt: prompt,
+            url: uploadResult.url, // Fallback to uploaded image (already on Cloudinary)
+            cloudinaryUrl: uploadResult.url,
+            fullChapterText: chapterText
+          };
+        }
+      } catch (error) {
+        console.error(`❌ Error generating image for Chapter ${chapterNumber}:`, error);
+        
+        // Fallback to uploaded image
+        let chapterText = defaultChapterStories[index] || `Chapter ${chapterNumber} of ${childData.childName}'s magical adventure.`;
+        if (hasExistingStory && sessionData.storyResult.chapters && sessionData.storyResult.chapters[index]) {
+          const existingChapter = sessionData.storyResult.chapters[index];
+          chapterText = existingChapter.fullChapterText || existingChapter.chapterText || chapterText;
+        }
+        
+        return {
+          chapterNumber,
+          filename: `error_chapter_${chapterNumber}.jpg`,
+          prompt: prompt,
+          url: uploadResult.url, // Fallback to uploaded image (already on Cloudinary)
+          cloudinaryUrl: uploadResult.url,
+          fullChapterText: chapterText
+        };
       }
-      
-      return {
-        chapterNumber,
-        filename: `mock_chapter_${chapterNumber}.jpg`,
-        prompt: chapterPrompts[index],
-        url: uploadResult.url, // Use uploaded image as character placeholder
-        fullChapterText: chapterText
-      };
     });
+    
+    // Wait for all images to be generated
+    generatedImages = await Promise.all(imagePromises);
+    console.log(`✅ Generated ${generatedImages.length} character images`);
+    
+    // Also generate a single character image for compatibility
+    if (generatedImages.length > 0) {
+      singleImage = generatedImages[0].url;
+    }
     
     // Update analysis result
     if (analysisResult) {

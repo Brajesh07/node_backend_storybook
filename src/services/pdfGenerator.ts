@@ -269,8 +269,8 @@ export class PDFGeneratorService {
       chapterImages.map(async (chapter, index) => {
         let imageBase64 = '';
         try {
-          // Use the URL from chapter.url or fallback to filename
-          const imagePath = chapter.url || chapter.filename;
+          // Use the local filename first, then fallback to URL
+          const imagePath = chapter.filename || chapter.url;
           if (imagePath) {
             imageBase64 = await this.getImageAsBase64(imagePath);
             console.log(`DEBUG: Successfully converted chapter ${chapter.chapterNumber} image to base64`);
