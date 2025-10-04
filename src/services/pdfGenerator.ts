@@ -269,11 +269,14 @@ export class PDFGeneratorService {
       chapterImages.map(async (chapter, index) => {
         let imageBase64 = '';
         try {
-          // Use the local filename first, then fallback to URL
-          const imagePath = chapter.filename || chapter.url;
+          // Use the URL (which contains the actual Cloudinary URL)
+          const imagePath = chapter.url || chapter.cloudinaryUrl;
           if (imagePath) {
+            console.log(`DEBUG: Converting chapter ${chapter.chapterNumber} image from URL: ${imagePath}`);
             imageBase64 = await this.getImageAsBase64(imagePath);
             console.log(`DEBUG: Successfully converted chapter ${chapter.chapterNumber} image to base64`);
+          } else {
+            console.error(`ERROR: No URL found for chapter ${chapter.chapterNumber}`);
           }
         } catch (error) {
           console.error(`ERROR: Failed to convert chapter ${chapter.chapterNumber} image:`, error);
