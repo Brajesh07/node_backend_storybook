@@ -140,3 +140,11 @@ Thumbs.db
 
 # Generated storybook PDFs
 storybook*.pdf
+
+# Development documentation (keep README.md only)
+*ENHANCEMENT*.md
+*QUICK_REF*.md
+*IMPROVEMENTS*.md
+*IMPLEMENTATION*.md
+*FLOW*.md
+*_prompts.md

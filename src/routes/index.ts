@@ -71,14 +71,17 @@ router.post('/story/generate', async (req: Request, res: Response) => {
       childData.gender
     );
 
-    // Generate chapter prompts based on the story chapters
+    // Generate detailed chapter prompts based on the story chapters
+    // Using buildChapterSpecificPrompt for consistency with image generation
     const chapterPrompts = storyResult.chapters.map((chapter, index) => {
       const chapterElements = storyAnalysisService.analyzeChapterElements(chapter.chapterText);
-      return storyAnalysisService.generateChapterPrompt(
+      return storyAnalysisService.buildChapterSpecificPrompt(
+        analysisResult,
+        chapterElements,
+        childData.childName,
         childData.age,
         childData.gender,
-        index + 1,
-        chapterElements
+        index + 1
       );
     });
 
@@ -275,6 +278,19 @@ router.post('/character/generate', async (req: Request, res: Response) => {
     
     console.log(`🔍 DEBUG: Session childData:`, JSON.stringify(childData, null, 2));
     console.log(`🎨 Generating character images for ${childData.childName}...`);
+    
+    // If analysisResult is missing, create a basic one
+    let currentAnalysisResult = analysisResult;
+    if (!currentAnalysisResult) {
+      console.log(`⚠️ No analysis result found, creating basic analysis`);
+      const storyText = existingStory?.storyText || `A magical adventure story about ${childData.childName}`;
+      currentAnalysisResult = storyAnalysisService.analyzeStoryAndBuildPrompt(
+        storyText,
+        childData.age,
+        childData.gender
+      );
+      sessionData.analysisResult = currentAnalysisResult;
+    }
 
     let generatedImages: any[] = [];
     let singleImage: string | null = null;
@@ -329,8 +345,18 @@ router.post('/character/generate', async (req: Request, res: Response) => {
         console.log(`📝 Using default chapter ${chapterNumber} text`);
       }
       
-      // Generate character prompt for this chapter
-      const chapterPrompt = `A magical character illustration of ${childData.childName}, a ${childData.age}-year-old ${childData.gender}, in Chapter ${chapterNumber} of their adventure story. The character should be depicted in an engaging scene that matches the chapter's theme. Style: children's book illustration, colorful, friendly, magical.`;
+      // Analyze chapter elements and build detailed 2D flat style prompt
+      const chapterElements = storyAnalysisService.analyzeChapterElements(chapterText);
+      const chapterPrompt = storyAnalysisService.buildChapterSpecificPrompt(
+        currentAnalysisResult,
+        chapterElements,
+        childData.childName,
+        childData.age,
+        childData.gender,
+        chapterNumber
+      );
+      
+      console.log(`🎨 Generated detailed prompt for Chapter ${chapterNumber}: ${chapterPrompt.substring(0, 150)}...`);
       
       chapterPrompts.push(chapterPrompt);
     }

@@ -1,4 +1,5 @@
 import { Chapter } from './storyGenerator';
+import { buildStorybookPrompt, validatePromptParams } from '../utils/promptBuilder';
 
 export interface ChapterElements {
   settings: string[];
@@ -106,73 +107,489 @@ export class StoryAnalysisService {
   }
 
   /**
-   * Generate a character prompt for a specific chapter
+   * Generate a character prompt for a specific chapter (LEGACY/SIMPLIFIED VERSION)
+   * NOTE: For production use, prefer buildChapterSpecificPrompt() which generates
+   * more detailed prompts with full 2D flat style specifications.
+   * This method is kept for backwards compatibility and quick testing.
    */
   generateChapterPrompt(age: number, gender: string, chapterNumber: number, chapterElements: ChapterElements): string {
-    // Base character prompt
-    let characterPrompt = `A ${age}-year-old ${gender} character ${chapterElements.chapterText ? 'in ' + chapterElements.chapterText.substring(0, 100) : ''}`;
+    // Base character prompt with 2D flat style emphasis
+    let characterPrompt = `A ${age}-year-old ${gender} character in flat 2D illustration style ${chapterElements.chapterText ? 'in ' + chapterElements.chapterText.substring(0, 100) : ''}`;
 
     // Age-appropriate styling
     let ageStyle: string;
     if (age <= 4) {
-      ageStyle = "toddler proportions with large head, chubby cheeks, innocent expression";
+      ageStyle = "toddler proportions with large head, chubby cheeks, innocent expression, rendered with bold outlines and flat colors";
     } else if (age <= 7) {
-      ageStyle = "young child proportions with bright curious eyes, energetic posture";
+      ageStyle = "young child proportions with bright curious eyes, energetic posture, illustrated in graphic novel style";
     } else if (age <= 12) {
-      ageStyle = "child proportions with confident expression, adventurous spirit";
+      ageStyle = "child proportions with confident expression, adventurous spirit, shown in bold 2D cartoon style";
     } else {
-      ageStyle = "teen proportions with mature confident expression, heroic stance";
+      ageStyle = "teen proportions with mature confident expression, heroic stance, rendered in flat digital art";
     }
 
-    // Chapter-specific outfit variations
+    // Chapter-specific outfit variations with 2D emphasis
     const outfits = [
-      "wearing casual adventure clothes like a colorful t-shirt and shorts",
-      "dressed in explorer outfit with vest and comfortable pants",
-      "in magical outfit with cape and adventure gear",
-      "wearing nature-themed clothes with earth tones",
-      "in heroic outfit with impressive details and bright colors"
+      "wearing casual adventure clothes like a colorful t-shirt and shorts, rendered with thick outlines and flat cel-shading",
+      "dressed in explorer outfit with vest and comfortable pants, illustrated in bold graphic style",
+      "in magical outfit with cape and adventure gear, shown with vibrant flat colors and clean edges",
+      "wearing nature-themed clothes with earth tones, rendered in simplified 2D shapes",
+      "in heroic outfit with impressive details and bright colors, illustrated with bold black outlines"
     ];
     
     const outfit = outfits[(chapterNumber - 1) % outfits.length];
 
-    // Setting-based background
-    let setting = "warm colorful background";
+    // Setting-based background with flat 2D styling
+    let setting = "warm colorful background with flat graphic elements";
     if (chapterElements.settings.length > 0) {
       const primarySetting = chapterElements.settings[0];
       const settingMap: { [key: string]: string } = {
-        forest: "enchanted forest background with trees and magical light",
-        castle: "majestic castle background with towers and banners",
-        ocean: "ocean background with waves and coral",
-        mountain: "mountain landscape with peaks and valleys",
-        garden: "beautiful garden with flowers and butterflies",
-        city: "magical city background with towers",
-        sky: "sky background with clouds and light",
-        space: "cosmic space background with stars"
+        forest: "flat 2D enchanted forest background with simplified trees and bold shapes",
+        castle: "graphic 2D castle background with geometric towers rendered in flat perspective",
+        ocean: "flat 2D ocean background with simplified waves and bold coral shapes",
+        mountain: "2D mountain landscape with clean geometric peaks and flat color blocks",
+        garden: "flat 2D garden with graphic flower shapes and bold simplified butterflies",
+        city: "graphic 2D magical city background with geometric towers and clean lines",
+        sky: "flat 2D sky background with simplified clouds and bold graphic elements",
+        space: "2D cosmic space background with geometric stars and flat planet shapes"
       };
       setting = settingMap[primarySetting] || setting;
     }
 
-    // Objects as props
+    // Objects as props with flat 2D style
     let props = "";
     if (chapterElements.objects.length > 0) {
       const obj = chapterElements.objects[0];
       const propMap: { [key: string]: string } = {
-        crystal: "holding a glowing magical crystal",
-        book: "carrying an ancient book",
-        sword: "wielding a heroic sword",
-        wand: "holding a magical wand",
-        crown: "wearing a small crown",
-        flower: "holding beautiful flowers"
+        crystal: "holding a glowing crystal rendered with flat geometric facets",
+        book: "carrying a book shown with simple flat pages and bold outlines",
+        sword: "wielding a sword illustrated with clean lines and flat metallic colors",
+        wand: "holding a wand with a simple glowing tip shown as flat shapes",
+        crown: "wearing a crown rendered with geometric shapes and flat gold",
+        flower: "holding flowers shown as bold graphic shapes with flat colors"
       };
       props = propMap[obj] || "";
     }
 
-    // Combine elements
-    return `${characterPrompt}, ${ageStyle}, ${outfit}${props ? ', ' + props : ''}, in ${setting}, digital art style, vibrant colors, friendly expression`;
+    // Combine elements with strong 2D flat style emphasis
+    return `${characterPrompt}, ${ageStyle}, ${outfit}${props ? ', ' + props : ''}, in ${setting}, ` +
+      `FLAT 2D digital art style with THICK BLACK OUTLINES, cel-shaded flat colors, vibrant saturated hues, ` +
+      `friendly expression, NO 3D effects, NO realistic shading, graphic novel aesthetic`;
   }
 
   /**
-   * Analyze story text and build enhanced character prompt
+   * Extract visual pose and action from story text
+   * IMPROVED: Returns visually-interpretable descriptions, not narrative text
+   * Avoids narrative verbs (promised, would find) in favor of visual verbs (standing, holding)
+   */
+  private extractVisualPose(chapterText: string): string {
+    const chapterLower = chapterText.toLowerCase();
+    
+    // Visual pose patterns with priority (most specific first)
+    const posePatterns = [
+      // ANYA STORY SPECIFIC - Most detailed (4+ keywords)
+      { keywords: ['kneeling', 'holding', 'pebble', 'glowing'], pose: 'kneeling near an old oak tree, gently holding a glowing, rainbow-colored pebble with awe' },
+      { keywords: ['sitting', 'humming', 'weaving', 'vines'], pose: 'sitting beside a sparkling stream, smiling with joy as she hums and gently weaves apart glowing Giggle-Vines' },
+      { keywords: ['sitting', 'stream', 'weaving', 'vines'], pose: 'sitting beside the stream, gently weaving apart the shimmering Giggle-Vines with care' },
+      
+      // Specific three-action combinations (most detailed)
+      { keywords: ['kneeling', 'holding', 'locket', 'heart'], pose: 'kneeling under an old oak tree, gently holding a glowing heart-shaped locket' },
+      { keywords: ['standing', 'beside', 'star', 'laughing'], pose: 'standing beside the glowing Wishing Star, laughing joyfully' },
+      { keywords: ['kneeling', 'digging', 'pebble'], pose: 'kneeling in the garden, digging near the old oak tree with excitement' },
+      { keywords: ['holding', 'pebble', 'rainbow'], pose: 'holding a smooth, rainbow-colored pebble that glows softly' },
+      
+      // Specific two-action combinations
+      { keywords: ['standing', 'holding', 'locket', 'glowing'], pose: 'standing confidently, holding an open glowing locket' },
+      { keywords: ['kneeling', 'holding', 'locket'], pose: 'kneeling down, holding a glowing locket in both hands' },
+      { keywords: ['kneeling', 'digging', 'shovel'], pose: 'kneeling in the soil, digging with a small shovel' },
+      { keywords: ['holding', 'pebble', 'glowing'], pose: 'holding a glowing pebble close, with wide eyes full of wonder' },
+      { keywords: ['sitting', 'humming', 'stream'], pose: 'sitting beside the stream, humming a gentle melody' },
+      { keywords: ['carrying', 'cupped hands'], pose: 'walking carefully with cupped hands carrying something small' },
+      { keywords: ['reaching', 'offering', 'leaf'], pose: 'reaching forward, offering a leaf with both hands' },
+      { keywords: ['sitting', 'reading', 'book'], pose: 'sitting cross-legged, reading an open book' },
+      { keywords: ['standing', 'pointing'], pose: 'standing upright, pointing ahead excitedly' },
+      { keywords: ['standing', 'laughing'], pose: 'standing joyfully, laughing with arms slightly raised' },
+      { keywords: ['climbing', 'tree'], pose: 'climbing up carefully' },
+      { keywords: ['painting', 'drawing'], pose: 'painting or drawing with creative focus' },
+      
+      // Single clear poses
+      { keywords: ['kneeling down', 'kneel'], pose: 'kneeling down on one knee' },
+      { keywords: ['holding', 'locket'], pose: 'holding a glowing locket gently in both hands' },
+      { keywords: ['holding', 'crystal', 'gem', 'stone'], pose: 'holding a glowing object in both hands' },
+      { keywords: ['holding', 'flower', 'leaf'], pose: 'holding a flower/leaf gently in cupped hands' },
+      { keywords: ['reaching out', 'reaching'], pose: 'reaching out with one hand extended' },
+      { keywords: ['waving'], pose: 'waving cheerfully with one hand raised' },
+      { keywords: ['laughing', 'giggling'], pose: 'laughing joyfully with a bright smile' },
+      { keywords: ['pointing'], pose: 'pointing forward with determination' },
+      { keywords: ['dancing', 'twirling'], pose: 'dancing joyfully with arms out' },
+      { keywords: ['running'], pose: 'running forward with determination' },
+      { keywords: ['walking forward', 'walking'], pose: 'walking forward confidently' },
+      { keywords: ['sitting'], pose: 'sitting comfortably' },
+      { keywords: ['standing tall', 'standing'], pose: 'standing upright' },
+      { keywords: ['looking up', 'gazing'], pose: 'looking up with wonder' },
+      { keywords: ['hugging'], pose: 'hugging warmly' },
+      { keywords: ['offering', 'giving'], pose: 'offering something with outstretched hands' }
+    ];
+    
+    // Find the most specific matching pose
+    for (const pattern of posePatterns) {
+      const matchCount = pattern.keywords.filter(kw => chapterLower.includes(kw)).length;
+      if (matchCount === pattern.keywords.length) {
+        return pattern.pose;
+      }
+    }
+    
+    // Default friendly pose
+    return 'standing with a warm, friendly expression';
+  }
+
+  /**
+   * Extract scene context with other characters/objects mentioned in the story
+   * This adds depth to the scene (e.g., "tiny Glimmerwings flutter nearby")
+   */
+  private extractSceneContext(chapterText: string): string {
+    const chapterLower = chapterText.toLowerCase();
+    const contexts: string[] = [];
+    
+    // Character/creature presence patterns (expanded for Anya's story)
+    const characterPatterns = [
+      // Specific Anya story characters (most detailed first)
+      { keywords: ['pip', 'pixie', 'sprite'], context: 'Pip the Pixie-sprite floats near her shoulder, laughing along' },
+      { keywords: ['pip', 'shoulder'], context: 'Pip the Pixie-sprite hovers near her shoulder with joy' },
+      { keywords: ['pip', 'flittering'], context: 'Pip the Pixie-sprite flits nearby with butterfly wings' },
+      { keywords: ['pip', 'glimmerwing'], context: 'Pip the Glimmerwing hovers nearby, beaming proudly' },
+      { keywords: ['pip'], context: 'Pip, a tiny creature with emerald skin, sparkles nearby' },
+      { keywords: ['dewdrop', 'sprite'], context: 'colorful Dewdrop Sprites dance around with sparkles' },
+      { keywords: ['leaf', 'elf', 'elves'], context: 'giggling Leaf-Elves cheer with joy' },
+      { keywords: ['sprites', 'elves', 'creatures'], context: 'magical creatures celebrate together' },
+      { keywords: ['fireflies', 'forest'], context: 'little fireflies and gentle forest sprites twinkle around' },
+      
+      // General patterns
+      { keywords: ['glimmerwings', 'flutter', 'worried'], context: 'tiny Glimmerwings flutter nearby with worried expressions' },
+      { keywords: ['glimmerwings', 'flutter'], context: 'tiny Glimmerwings flutter around with sparkly wings' },
+      { keywords: ['glimmerwing', 'sparkle'], context: 'a tiny Glimmerwing named Pip sparkles in the warm light' },
+      { keywords: ['caterpillar', 'pip'], context: 'a small caterpillar rests nearby' },
+      { keywords: ['fairy', 'fairies'], context: 'small fairies hover around' },
+      { keywords: ['dragon', 'friendly'], context: 'a friendly dragon stands nearby' },
+      { keywords: ['butterfly', 'butterflies', 'glow'], context: 'glowing butterflies flutter in the warm light' },
+      { keywords: ['butterfly', 'butterflies'], context: 'colorful butterflies flutter around' },
+      { keywords: ['bird', 'birds'], context: 'cheerful birds perch nearby' },
+      { keywords: ['rabbit', 'bunny'], context: 'a small rabbit watches curiously' },
+      { keywords: ['moss', 'soft'], context: 'soft moss and glowing elements surround the scene' }
+    ];
+    
+    // Object/portal patterns (expanded for Anya's story)
+    const objectPatterns = [
+      // Specific Anya story objects (most detailed first)
+      { keywords: ['moonpetal', 'flowers', 'bloom'], context: 'the Moonpetal Flowers bloom beautifully, bathing the scene in warm silvery light' },
+      { keywords: ['giggle', 'vines', 'shimmer'], context: 'sparkling Giggle-Vines wiggle playfully nearby' },
+      { keywords: ['starlight', 'stream', 'flow'], context: 'the Starlight Stream flows and sparkles beside her' },
+      { keywords: ['wishing', 'star', 'glow'], context: 'the brilliant Wishing Star shines overhead' },
+      { keywords: ['portal', 'shimmer', 'colors'], context: 'a shimmering portal of colors glows in the background' },
+      { keywords: ['oak', 'tree', 'old'], context: 'an old oak tree stands majestically behind' },
+      { keywords: ['pebble', 'rainbow', 'glow'], context: 'sunlight filters through the branches, making scattered pebbles and moss sparkle' },
+      { keywords: ['petals', 'glow'], context: 'glowing petals and soft light fill the air' },
+      { keywords: ['archway', 'hidden'], context: 'hints of a hidden archway glow softly in the distance' },
+      
+      // General patterns
+      { keywords: ['portal', 'glowing', 'shimmering'], context: 'a shimmering portal glows faintly in the background' },
+      { keywords: ['door', 'magical', 'glowing'], context: 'a magical glowing door stands behind' },
+      { keywords: ['tree', 'ancient', 'glowing'], context: 'an ancient glowing tree towers in the background' },
+      { keywords: ['crystal', 'floating'], context: 'floating crystals shimmer around' },
+      { keywords: ['rainbow', 'light'], context: 'rainbow light illuminates the scene' },
+      { keywords: ['rainbow'], context: 'a soft rainbow arcs in the background' },
+      { keywords: ['stars', 'glowing'], context: 'glowing stars twinkle around' },
+      { keywords: ['sparkles', 'laughter'], context: 'bright sparkles fill the air' }
+    ];
+    
+    // Check for character presence (can add multiple)
+    let characterCount = 0;
+    for (const pattern of characterPatterns) {
+      if (pattern.keywords.every(kw => chapterLower.includes(kw))) {
+        contexts.push(pattern.context);
+        characterCount++;
+        if (characterCount >= 2) break; // Limit to 2 character contexts
+      }
+    }
+    
+    // Check for object/portal presence
+    for (const pattern of objectPatterns) {
+      if (pattern.keywords.every(kw => chapterLower.includes(kw))) {
+        contexts.push(pattern.context);
+        break; // Only add one object context
+      }
+    }
+    
+    return contexts.join(', and ');
+  }
+
+  /**
+   * Extract emotional transition from story text
+   * Looks for emotional changes (excitement → surprise, happy → worried, etc.)
+   */
+  private extractEmotionalTransition(chapterText: string): string {
+    const chapterLower = chapterText.toLowerCase();
+    
+    // Pattern: "from X to Y" emotions
+    const transitionPatterns = [
+      { pattern: /excit.*?to.*?(surprise|worry|amaze|shock)/i, result: 'excitement to surprised worry' },
+      { pattern: /happy.*?to.*?(sad|worry|fear)/i, result: 'happiness to concern' },
+      { pattern: /curious.*?to.*?(excit|amaze|delight)/i, result: 'curiosity to amazement' },
+      { pattern: /calm.*?to.*?(excit|worry|alert)/i, result: 'calm to alert excitement' },
+      { pattern: /brave.*?to.*?(triumph|proud|happy)/i, result: 'bravery to triumph' }
+    ];
+    
+    for (const { pattern, result } of transitionPatterns) {
+      if (pattern.test(chapterLower)) {
+        return result;
+      }
+    }
+    
+    // Check for "suddenly" or "just" indicating a moment of change
+    if (chapterLower.includes('suddenly') || chapterLower.includes('just then')) {
+      // Look for emotion words after "suddenly"
+      const emotions = ['surprised', 'amazed', 'worried', 'excited', 'shocked', 'delighted', 'gasped'];
+      for (const emotion of emotions) {
+        if (chapterLower.includes(emotion)) {
+          return `surprise and ${emotion}`;
+        }
+      }
+      return 'surprise and wonder';
+    }
+    
+    // Single emotion states (expanded for better detection)
+    const singleEmotions = [
+      // Specific compound emotions (check first)
+      { keywords: ['awe', 'excitement'], expression: 'awe and excitement' },
+      { keywords: ['joy', 'laughter'], expression: 'joy and laughter' },
+      { keywords: ['wonder', 'curiosity'], expression: 'wonder and curiosity' },
+      
+      // Primary emotions
+      { keywords: ['gentle', 'gently', 'kindly', 'softly'], expression: 'gentle kindness' },
+      { keywords: ['laughing', 'laughter', 'giggling'], expression: 'joyful laughter' },
+      { keywords: ['excited', 'thrilled'], expression: 'excitement' },
+      { keywords: ['amazed', 'astonished'], expression: 'amazement' },
+      { keywords: ['awe', 'wonder'], expression: 'awe and wonder' },
+      { keywords: ['happy', 'joyful', 'cheerful'], expression: 'joy and happiness' },
+      { keywords: ['brave', 'courageous'], expression: 'bravery' },
+      { keywords: ['worried', 'concerned'], expression: 'worry' },
+      { keywords: ['curious'], expression: 'curiosity' },
+      { keywords: ['proud'], expression: 'pride' },
+      { keywords: ['triumph', 'victorious'], expression: 'triumph' },
+      { keywords: ['peaceful', 'calm'], expression: 'peaceful calm' }
+    ];
+    
+    for (const { keywords, expression } of singleEmotions) {
+      if (keywords.some(kw => chapterLower.includes(kw))) {
+        return expression;
+      }
+    }
+    
+    return 'wonder and excitement';
+  }
+
+  /**
+   * Extract specific nouns (scene elements) directly from chapter text
+   * This ensures scene description matches the actual story content
+   */
+  private extractSceneNouns(chapterText: string): string[] {
+    const chapterLower = chapterText.toLowerCase();
+    const sceneNouns: string[] = [];
+    
+    // Environment/Location nouns (Anya story enhanced)
+    const environments = ['garden', 'forest', 'meadow', 'field', 'castle', 'palace', 'ocean', 'sea', 'beach', 
+                         'mountain', 'cave', 'river', 'lake', 'stream', 'village', 'town', 'city', 'sky', 'clouds', 
+                         'space', 'room', 'house', 'door', 'gate', 'path', 'road', 'bridge', 'archway', 'portal'];
+    
+    // Nature elements (Anya story enhanced)
+    const nature = ['tree', 'oak tree', 'flower', 'moonpetal', 'blossom', 'sunflower', 'rose', 'grass', 'leaf', 'branch', 
+                   'mushroom', 'stone', 'pebble', 'rock', 'water', 'sun', 'moon', 'star', 'rainbow', 'moss', 'petals'];
+    
+    // Creatures (Anya story enhanced)
+    const creatures = ['bird', 'butterfly', 'bee', 'caterpillar', 'rabbit', 'squirrel', 'owl', 
+                      'dragon', 'unicorn', 'fairy', 'pixie', 'sprite', 'glimmerwing', 'pip', 
+                      'fish', 'whale', 'dolphin', 'firefly'];
+    
+    // Objects (Anya story enhanced)
+    const objects = ['crown', 'wand', 'sword', 'book', 'crystal', 'gem', 'treasure', 'door', 
+                    'window', 'lantern', 'candle', 'basket', 'cup', 'pebble', 'locket', 
+                    'vines', 'giggle-vines', 'shovel'];
+    
+    const allNouns = [...environments, ...nature, ...creatures, ...objects];
+    
+    for (const noun of allNouns) {
+      if (chapterLower.includes(noun)) {
+        sceneNouns.push(noun);
+      }
+    }
+    
+    return sceneNouns;
+  }
+
+  /**
+   * Extract specific physical actions from chapter text
+   * Returns detailed action descriptions for accurate pose generation
+   */
+  private extractPhysicalActions(chapterText: string): string {
+    const chapterLower = chapterText.toLowerCase();
+    
+    // Specific physical actions with their descriptions (Anya story enhanced)
+    const actionPatterns = [
+      { keywords: ['digging', 'shovel'], description: 'digging with a small shovel' },
+      { keywords: ['holding', 'pebble'], description: 'holding a glowing pebble close' },
+      { keywords: ['humming', 'singing'], description: 'humming a gentle melody' },
+      { keywords: ['weaving', 'vines'], description: 'gently weaving apart vines' },
+      { keywords: ['carrying', 'carried', 'holding', 'held', 'cupped hands'], description: 'gently holding something in cupped hands' },
+      { keywords: ['kneeling', 'kneel', 'crouching'], description: 'kneeling down' },
+      { keywords: ['reaching', 'reaching out', 'extending'], description: 'reaching out with one hand' },
+      { keywords: ['pointing', 'pointed'], description: 'pointing excitedly' },
+      { keywords: ['hugging', 'embracing'], description: 'hugging warmly' },
+      { keywords: ['offering', 'offered', 'giving', 'gave'], description: 'offering something with both hands' },
+      { keywords: ['climbing', 'climbed'], description: 'climbing carefully' },
+      { keywords: ['jumping', 'jumped', 'leaping'], description: 'jumping with joy' },
+      { keywords: ['running', 'ran'], description: 'running energetically' },
+      { keywords: ['walking', 'walked'], description: 'walking forward confidently' },
+      { keywords: ['sitting', 'sat'], description: 'sitting comfortably' },
+      { keywords: ['standing', 'stood'], description: 'standing upright' },
+      { keywords: ['looking', 'searching', 'watching'], description: 'looking ahead curiously' },
+      { keywords: ['waving', 'waved'], description: 'waving cheerfully' },
+      { keywords: ['dancing', 'danced'], description: 'dancing happily' }
+    ];
+    
+    // Find the most specific action mentioned in the text
+    for (const pattern of actionPatterns) {
+      for (const keyword of pattern.keywords) {
+        if (chapterLower.includes(keyword)) {
+          return pattern.description;
+        }
+      }
+    }
+    
+    // Default action
+    return 'standing with a friendly pose';
+  }
+
+  /**
+   * Extract emotion/expression from chapter text
+   * Returns specific emotional state for facial expression
+   */
+  private extractEmotion(chapterText: string): string {
+    const chapterLower = chapterText.toLowerCase();
+    
+    const emotionPatterns = [
+      { keywords: ['excited', 'excitement', 'thrilled'], expression: 'beaming with excitement' },
+      { keywords: ['amazed', 'astonished', 'surprised'], expression: 'looking amazed and wide-eyed' },
+      { keywords: ['happy', 'joyful', 'delighted'], expression: 'smiling joyfully' },
+      { keywords: ['gentle', 'gently', 'softly', 'carefully'], expression: 'smiling gently and kindly' },
+      { keywords: ['brave', 'courageous', 'determined'], expression: 'showing brave determination' },
+      { keywords: ['curious', 'wondering', 'puzzled'], expression: 'looking curious and thoughtful' },
+      { keywords: ['proud'], expression: 'smiling proudly' },
+      { keywords: ['grateful', 'thankful'], expression: 'smiling warmly with gratitude' },
+      { keywords: ['worried', 'concerned'], expression: 'looking concerned but hopeful' },
+      { keywords: ['peaceful', 'calm', 'relaxed'], expression: 'smiling peacefully' }
+    ];
+    
+    for (const pattern of emotionPatterns) {
+      for (const keyword of pattern.keywords) {
+        if (chapterLower.includes(keyword)) {
+          return pattern.expression;
+        }
+      }
+    }
+    
+    return 'smiling warmly';
+  }
+
+  /**
+   * Build scene description directly from story nouns
+   * Ensures background matches actual story content
+   */
+  private buildSceneDescription(sceneNouns: string[]): string {
+    if (sceneNouns.length === 0) {
+      return 'a colorful magical storybook setting';
+    }
+    
+    // Group nouns by category for natural description (Anya story enhanced)
+    const hasGarden = sceneNouns.some(n => ['garden', 'flower', 'sunflower', 'blossom', 'backyard'].includes(n));
+    const hasForest = sceneNouns.some(n => ['forest', 'tree', 'woods', 'oak tree'].includes(n));
+    const hasMagicalForest = sceneNouns.some(n => ['glowing', 'moonpetal', 'starlight', 'portal', 'archway'].includes(n));
+    const hasStream = sceneNouns.some(n => ['stream', 'starlight stream'].includes(n));
+    const hasWater = sceneNouns.some(n => ['ocean', 'sea', 'river', 'lake', 'water'].includes(n));
+    const hasCreatures = sceneNouns.some(n => ['butterfly', 'caterpillar', 'bird', 'pixie', 'fairy', 'sprite', 'glimmerwing'].includes(n));
+    
+    let scene = '';
+    
+    if (hasMagicalForest) {
+      scene = 'glowing magical forest with';
+      const magicalElements = sceneNouns.filter(n => 
+        ['moonpetal', 'starlight', 'portal', 'archway', 'sprite', 'glimmerwing', 'petals'].includes(n)
+      );
+      if (magicalElements.length > 0) {
+        scene += ' ' + magicalElements.slice(0, 3).join(', ');
+      } else {
+        scene += ' sparkling trees and enchanted flowers';
+      }
+    } else if (hasStream) {
+      scene = 'sparkling stream scene with';
+      const streamElements = sceneNouns.filter(n => 
+        ['vines', 'giggle-vines', 'moonpetal', 'flowers', 'forest'].includes(n)
+      );
+      if (streamElements.length > 0) {
+        scene += ' ' + streamElements.slice(0, 3).join(', ');
+      } else {
+        scene += ' flowing water and magical plants';
+      }
+    } else if (hasGarden) {
+      scene = 'sunny garden with';
+      const gardenElements = sceneNouns.filter(n => 
+        ['sunflower', 'flower', 'blossom', 'grass', 'rainbow', 'butterfly', 'caterpillar', 'oak tree', 'pebble', 'moss'].includes(n)
+      );
+      if (gardenElements.length > 0) {
+        scene += ' ' + gardenElements.slice(0, 3).join(', ');
+      } else {
+        scene += ' colorful flowers and green grass';
+      }
+    } else if (hasForest) {
+      scene = 'enchanted forest with';
+      const forestElements = sceneNouns.filter(n => 
+        ['tree', 'oak tree', 'mushroom', 'leaf', 'owl', 'squirrel', 'moss', 'petals'].includes(n)
+      );
+      if (forestElements.length > 0) {
+        scene += ' ' + forestElements.slice(0, 3).join(', ');
+      } else {
+        scene += ' tall trees and magical plants';
+      }
+    } else if (hasWater) {
+      scene = 'water scene with';
+      const waterElements = sceneNouns.filter(n => 
+        ['fish', 'coral', 'wave', 'dolphin', 'whale'].includes(n)
+      );
+      if (waterElements.length > 0) {
+        scene += ' ' + waterElements.slice(0, 3).join(', ');
+      } else {
+        scene += ' sparkling water and aquatic life';
+      }
+    } else {
+      // Use first 3 nouns found
+      scene = sceneNouns.slice(0, 3).join(', ');
+    }
+    
+    if (hasCreatures && !scene.includes('butterfly') && !scene.includes('caterpillar')) {
+      const creatures = sceneNouns.filter(n => 
+        ['butterfly', 'caterpillar', 'bird', 'pixie', 'fairy', 'bee'].includes(n)
+      );
+      if (creatures.length > 0) {
+        scene += ' and ' + creatures[0];
+      }
+    }
+    
+    return scene;
+  }
+
+  /**
+   * Analyze story text and build enhanced caricature prompt
+   * IMPROVEMENT v4: Uses storybook-prompt template for consistency
+   * Following storybook_prompt_tasks.md specification
    */
   buildChapterSpecificPrompt(
     baseAnalysis: StoryAnalysis,
@@ -182,132 +599,50 @@ export class StoryAnalysisService {
     gender: string,
     chapterNumber: number
   ): string {
-    // Base character template with chapter context
-    const basePrompt = `Create a digital caricature of the person in the uploaded photo as ${childName} ` +
-      `(${age}-year-old ${gender}). Exaggerate the head size and facial features in a humorous yet flattering style ` +
-      `with bold outlines and vibrant shading, while keeping the recognizable hairstyle.`;
+    // Extract story elements using existing methods
+    const visualPose = this.extractVisualPose(chapterElements.chapterText);
+    const emotion = this.extractEmotionalTransition(chapterElements.chapterText);
+    const sceneContext = this.extractSceneContext(chapterElements.chapterText);
     
-    // Age-appropriate body description with chapter variation
-    let bodyDesc: string;
-    let outfitOptions: string[];
-    
-    if (age <= 4) {
-      bodyDesc = "The body should have toddler proportions — short legs, chubby cheeks, playful energy.";
-      outfitOptions = [
-        "wearing a colorful adventure outfit with tiny boots",
-        "in a magical cape with sparkly details",
-        "wearing explorer clothes with a small backpack",
-        "in a superhero costume with bright colors"
-      ];
-    } else if (age <= 7) {
-      bodyDesc = "The body should have young child proportions — longer legs, confident posture, and playful energy.";
-      outfitOptions = [
-        "wearing an adventurer's outfit with sturdy boots",
-        "in a flowing magical cloak with mystical patterns",
-        "wearing explorer gear with useful pockets",
-        "in a heroic costume with a flowing cape"
-      ];
-    } else {
-      bodyDesc = "The body should have child proportions — mature posture, confident stance, ready for adventure.";
-      outfitOptions = [
-        "wearing a detailed adventure outfit with professional gear",
-        "in an elegant magical robe with intricate designs",
-        "wearing sophisticated explorer clothing",
-        "in a heroic outfit with impressive details"
-      ];
+    // Build environment description from settings
+    let environment = 'simple colorful storybook setting';
+    if (chapterElements.settings && chapterElements.settings.length > 0) {
+      environment = chapterElements.settings.join(', ');
     }
     
-    // Select outfit based on chapter number for variety
-    const outfitBase = outfitOptions[(chapterNumber - 1) % outfitOptions.length];
-    
-    // Chapter-specific character styling variations
-    const chapterStyles: { [key: number]: string } = {
-      1: "with excited, wide-open eyes and a big adventurous smile, hair slightly tousled from excitement",
-      2: "with curious, bright eyes and a determined expression, hair neatly styled for the journey",
-      3: "with focused, confident eyes and a brave smile, hair flowing with adventure",
-      4: "with kind, gentle eyes and a warm, caring smile, hair softly framing the face",
-      5: "with courageous, steady eyes and a fearless expression, hair dramatically styled",
-      6: "with creative, sparkling eyes and an innovative smile, hair styled with artistic flair",
-      7: "with triumphant, glowing eyes and a victorious smile, hair perfectly styled for success",
-      8: "with peaceful, satisfied smile and relaxed posture, hair perfectly styled for the happy ending"
+    // Prepare prompt parameters with scene composition enabled
+    const promptParams = {
+      childName,
+      age,
+      gender: gender as 'boy' | 'girl',
+      visualPose,
+      emotion,
+      sceneContext,
+      environment,
+      chapterNumber,
+      chapterText: chapterElements.chapterText,
+      useSceneComposition: true, // Enable scene composition mode
     };
     
-    const characterVariation = chapterStyles[chapterNumber] || "with adventurous expression and confident smile";
-
-    // Build setting description  
-    let settingDesc: string;
-    if (chapterElements.settings.length > 0) {
-      const primarySetting = chapterElements.settings[0];
-      const settingDescriptions: { [key: string]: string } = {
-        forest: "a lush, enchanted forest with towering trees and dappled sunlight",
-        castle: "a majestic castle with tall spires and flowing banners",
-        ocean: "a sparkling ocean with gentle waves and coral reefs",
-        mountain: "dramatic mountains with misty peaks and rocky cliffs",
-        garden: "a beautiful garden filled with colorful flowers and butterflies",
-        city: "a bustling magical city with towers and floating bridges",
-        sky: "a vast sky filled with fluffy clouds and rainbow light",
-        space: "a cosmic space setting with stars and glowing planets"
-      };
-      settingDesc = settingDescriptions[primarySetting] || "a magical adventure setting";
-    } else {
-      settingDesc = "a warm, colorful adventure setting";
+    // Validate parameters (optional but recommended)
+    const validationErrors = validatePromptParams(promptParams);
+    if (validationErrors.length > 0) {
+      console.warn(`⚠️ Prompt validation warnings for chapter ${chapterNumber}:`, validationErrors);
     }
     
-    // Add objects as props
-    let propsDesc = "";
-    if (chapterElements.objects.length > 0) {
-      const primaryObject = chapterElements.objects[0];
-      const objectDescriptions: { [key: string]: string } = {
-        crystal: "holding a glowing magical crystal that sparkles with inner light",
-        book: "carrying an ancient spellbook with mystical symbols",
-        sword: "wielding a heroic sword that gleams in the light",
-        wand: "holding a magical wand with a glowing tip",
-        crown: "wearing a small crown that catches the light beautifully",
-        door: "standing before an ornate magical door with intricate patterns",
-        bridge: "crossing a magnificent bridge that spans the landscape",
-        flower: "surrounded by magical flowers that glow softly"
-      };
-      propsDesc = ` ${objectDescriptions[primaryObject] || ''}`;
-    }
+    // Build prompt using storybook template with scene composition
+    const finalPrompt = buildStorybookPrompt(promptParams);
     
-    // Add action-based pose
-    let poseDesc = "";
-    if (chapterElements.actions.length > 0) {
-      const primaryAction = chapterElements.actions[0];
-      const actionDescriptions: { [key: string]: string } = {
-        exploring: "in an exploring pose, looking ahead with curiosity and wonder",
-        flying: "in a dynamic flying pose with arms outstretched and cape flowing",
-        running: "in an action running pose with energy and determination",
-        climbing: "in a climbing pose showing strength and perseverance",
-        swimming: "in a graceful swimming pose with water effects around",
-        fighting: "in a heroic fighting stance with confident posture",
-        helping: "in a caring helping pose, reaching out with kindness"
-      };
-      poseDesc = ` Position ${childName} ${actionDescriptions[primaryAction] || 'in a confident, adventurous pose'}.`;
-    }
+    // Debug logging
+    console.log(`\n🎨 CHAPTER ${chapterNumber} PROMPT (scene composition mode):`);
+    console.log(`📖 Story excerpt: "${chapterElements.chapterText.substring(0, 150)}..."`);
+    console.log(`🎭 Visual pose: ${visualPose}`);
+    console.log(`😊 Emotion: ${emotion}`);
+    console.log(`🌟 Scene context: ${sceneContext || 'none'}`);
+    console.log(`🏞️ Environment: ${environment}`);
+    console.log(`\n📝 FINAL PROMPT (with scene composition):\n${finalPrompt}\n`);
     
-    // Add mood-based lighting and atmosphere
-    let atmosphereDesc = "";
-    if (chapterElements.moods.length > 0) {
-      const primaryMood = chapterElements.moods[0];
-      const moodDescriptions: { [key: string]: string } = {
-        magical: "Use magical lighting with sparkles and glowing effects throughout the scene.",
-        happy: "Use bright, cheerful lighting with warm, golden tones.",
-        exciting: "Use dynamic lighting with vibrant colors and energy effects.",
-        peaceful: "Use soft, gentle lighting with calming pastel tones.",
-        brave: "Use heroic lighting with strong contrasts and bold highlights.",
-        mysterious: "Use mystical lighting with deep purples and ethereal glows."
-      };
-      atmosphereDesc = ` ${moodDescriptions[primaryMood] || ''}`;
-    }
-    
-    // Combine all elements into chapter-specific character prompt
-    const enhancedPrompt = `${basePrompt} ${bodyDesc} Show ${childName} ${characterVariation}. ` +
-      `${outfitBase}${propsDesc}${poseDesc} Set this in ${settingDesc}.${atmosphereDesc} ` +
-      `Use a warm, artistic background to keep focus on the character. The overall look should be colorful, ` +
-      `playful, and expressive — like a professional hand-drawn caricature illustration with unique styling for this chapter.`;
-    
-    return enhancedPrompt;
+    return finalPrompt;
   }
 
   /**
@@ -352,52 +687,18 @@ export class StoryAnalysisService {
       }
     }
     
-    // Build base enhanced prompt
-    const basePrompt = `Create a digital caricature of the person in the uploaded photo. ` +
-      `Exaggerate the head size and facial features in a humorous yet flattering style, ` +
-      `with bold outlines and vibrant shading. Maintain the person's recognizable hairstyle, ` +
-      `clothing, and accessories.`;
-
-    const ageTemplates: { [key: string]: string } = {
-      toddler: `The character should have toddler proportions with a large head, chubby cheeks, ` +
-        `short legs, and an innocent, playful expression. Show them in comfortable play clothes ` +
-        `like overalls or a colorful t-shirt.`,
-      young_child: `The character should have young child proportions with a slightly larger head, ` +
-        `energetic posture, and bright, curious eyes. Dress them in adventure-ready clothes ` +
-        `like jeans and a fun t-shirt or dress.`,
-      child: `The character should have child proportions with confident posture, intelligent eyes, ` +
-        `and a ready-for-anything attitude. Show them in casual but neat clothes suitable for adventures.`,
-      teen: `The character should have teen proportions with a more mature stance, expressive features, ` +
-        `and stylish but practical clothing that shows their personality.`
-    };
-
-    const themeTemplates: { [key: string]: string } = {
-      magic: `Incorporate magical elements like sparkles, a wizard hat, or magical accessories. ` +
-        `Use mystical colors like deep purples, shimmering golds, and magical blues. ` +
-        `Add a subtle magical aura or glowing effects.`,
-      adventure: `Show them in explorer gear like a safari hat, adventure backpack, or compass. ` +
-        `Use earth tones mixed with bright accent colors. Position them in an action-ready pose ` +
-        `that suggests they're ready for any adventure.`,
-      friendship: `Include warm, welcoming body language and a big, genuine smile. ` +
-        `Use warm colors like yellows, oranges, and soft pinks. Maybe add a friendly pet ` +
-        `or companion in the background.`,
-      nature: `Surround them with natural elements like flowers, leaves, or small forest creatures. ` +
-        `Use natural greens, browns, and floral colors. Show them in outdoor-appropriate ` +
-        `clothing with a peaceful, nature-loving expression.`,
-      ocean: `Include ocean-themed elements like seashells, a sailor's hat, or ocean colors. ` +
-        `Use blues, teals, and sandy colors. Maybe add some splashing water effects ` +
-        `or sea creatures in the background.`,
-      space: `Add cosmic elements like stars, planets, or a space helmet. Use cosmic colors ` +
-        `like deep blues, purples, and silver accents. Include some twinkling star effects ` +
-        `or nebula colors in the background.`
-    };
-
-    const enhancedPrompt = `${basePrompt}\n\n${ageTemplates[ageCategory]}\n\n${themeTemplates[primaryTheme]}\n\n` +
-      `Use a warm, artistic background to keep focus on the character. The overall look should be colorful, ` +
-      `playful, and expressive — like a professional hand-drawn caricature illustration.`;
+    // Build base enhanced prompt in concise format
+    const basePrompt = [
+      `Create a 2D flat digital caricature illustration of the person in the uploaded photo.`,
+      `Style: bold cartoon illustration with flat colors, clean outlines (3-5px), and simple geometric shapes.`,
+      `Keep their facial likeness, hair shape, and smile recognizable.`,
+      `No 3D, no gradients, no realistic shading.`,
+      `Add a soft, bright fantasy background.`,
+      `Keywords: flat-vector, children's storybook art, vibrant palette, clean outlines.`
+    ].join('\n');
     
     return {
-      enhancedPrompt,
+      enhancedPrompt: basePrompt,
       chapterPrompts: [], // Will be populated when chapters are available
       chapters: [],
       primaryTheme,

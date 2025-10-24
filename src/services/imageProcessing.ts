@@ -47,7 +47,7 @@ export class ImageProcessingService {
       const payload = {
         [configService.config.replicateInputKey]: imageUrl,
         prompt: enhancedPrompt,
-        aspect_ratio: "1:1",
+        aspect_ratio: "16:9",
         safety_tolerance: 2
       };
 
@@ -137,7 +137,7 @@ export class ImageProcessingService {
             format: 'jpg',
             transformation: [
               { quality: 'auto:good' },
-              { width: 512, height: 512, crop: 'fill' }
+              { width: 1280, height: 720, crop: 'fill' }
             ]
           },
           (error, result) => {
@@ -228,7 +228,7 @@ export class ImageProcessingService {
         const payload = {
           [configService.config.replicateInputKey]: imageUrl,
           prompt: personalizedPrompt,
-          aspect_ratio: "1:1",
+          aspect_ratio: "16:9",
           safety_tolerance: 2
         };
         
