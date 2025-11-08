@@ -10,6 +10,7 @@ import { storyAnalysisService } from '../services/storyAnalysis';
 import { fileUtilsService } from '../services/fileUtils';
 import { imageProcessingService } from '../services/imageProcessing';
 import { pdfGeneratorService } from '../services/pdfGenerator';
+import { paymentService } from '../services/paymentService';
 
 // Configure multer for file uploads
 const upload = multer({
@@ -36,6 +37,19 @@ const storyGenerationSchema = Joi.object({
   ).required(),
   parentName: Joi.string().trim().min(1).max(50).required(),
   chapterCount: Joi.number().integer().min(2).max(8).default(8)
+});
+
+const createOrderSchema = Joi.object({
+  amount: Joi.number().integer().min(100).required(), // Minimum ₹1 (100 paise)
+  currency: Joi.string().valid('INR').default('INR'),
+  receipt: Joi.string().optional(),
+  notes: Joi.object().optional()
+});
+
+const verifyPaymentSchema = Joi.object({
+  razorpay_order_id: Joi.string().required(),
+  razorpay_payment_id: Joi.string().required(),
+  razorpay_signature: Joi.string().required()
 });
 
 // In-memory session storage (in production, use Redis)
@@ -780,6 +794,218 @@ router.get('/debug/session/:sessionId', (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to get debug session data'
+    });
+  }
+});
+
+/**
+ * POST /api/payment/create-order
+ * Create a Razorpay order for payment
+ */
+router.post('/payment/create-order', async (req: Request, res: Response) => {
+  try {
+    // Validate request body
+    const { error, value } = createOrderSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.details[0].message
+      });
+    }
+
+    // Check if payment service is configured
+    if (!paymentService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured'
+      });
+    }
+
+    console.log('💳 Creating payment order for amount:', value.amount);
+
+    // Create order
+    const order = await paymentService.createOrder(value);
+
+    return res.json({
+      success: true,
+      data: {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: paymentService.getKeyId(), // Safe to expose for frontend
+        receipt: order.receipt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating payment order:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create payment order'
+    });
+  }
+});
+
+/**
+ * POST /api/payment/verify
+ * Verify payment signature
+ */
+router.post('/payment/verify', async (req: Request, res: Response) => {
+  try {
+    // Validate request body
+    const { error, value } = verifyPaymentSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.details[0].message
+      });
+    }
+
+    console.log('🔍 Verifying payment:', value.razorpay_order_id);
+
+    // Verify payment signature
+    const isValid = paymentService.verifyPayment(value);
+
+    if (isValid) {
+      // Payment verified successfully
+      // Here you can update the session or database with payment status
+      console.log('✅ Payment verified successfully');
+      
+      return res.json({
+        success: true,
+        data: {
+          verified: true,
+          orderId: value.razorpay_order_id,
+          paymentId: value.razorpay_payment_id,
+          message: 'Payment verified successfully'
+        }
+      });
+    } else {
+      console.log('❌ Payment verification failed');
+      return res.status(400).json({
+        success: false,
+        error: 'Payment verification failed'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error verifying payment:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to verify payment'
+    });
+  }
+});
+
+/**
+ * GET /api/payment/order/:orderId
+ * Get order details
+ */
+router.get('/payment/order/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    
+    if (!paymentService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured'
+      });
+    }
+
+    console.log('📋 Fetching order details:', orderId);
+
+    const order = await paymentService.getOrder(orderId);
+
+    return res.json({
+      success: true,
+      data: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        status: order.status,
+        receipt: order.receipt,
+        created_at: order.created_at,
+        attempts: order.attempts
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching order:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch order details'
+    });
+  }
+});
+
+/**
+ * GET /api/payment/config
+ * Get payment configuration for frontend
+ */
+router.get('/payment/config', (req: Request, res: Response) => {
+  try {
+    if (!paymentService.isConfigured()) {
+      return res.json({
+        success: true,
+        data: {
+          enabled: false,
+          message: 'Payment service not configured'
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        enabled: true,
+        keyId: paymentService.getKeyId(),
+        currency: 'INR'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting payment config:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to get payment configuration'
+    });
+  }
+});
+
+/**
+ * POST /api/payment/log
+ * Log payment events from frontend
+ */
+router.post('/payment/log', (req: Request, res: Response) => {
+  try {
+    const { message, type, source, timestamp } = req.body;
+    
+    const logPrefix = type === 'success' ? '✅' : 
+                      type === 'error' ? '❌' : 
+                      type === 'warning' ? '⚠️' : 
+                      'ℹ️';
+    
+    const logMessage = `${logPrefix} [${source || 'frontend'}] ${message}`;
+    
+    // Log based on type
+    if (type === 'error') {
+      console.error(logMessage);
+    } else if (type === 'warning') {
+      console.warn(logMessage);
+    } else {
+      console.log(logMessage);
+    }
+    
+    return res.json({
+      success: true,
+      data: { logged: true }
+    });
+
+  } catch (error) {
+    console.error('❌ Error logging payment event:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to log payment event'
     });
   }
 });

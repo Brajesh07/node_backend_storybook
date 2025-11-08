@@ -15,6 +15,10 @@ export interface AppConfig {
   geminiApiKey: string;
   cloudinaryUrl?: string;
   
+  // Payment Configuration (Razorpay)
+  razorpayKeyId: string;
+  razorpayKeySecret: string;
+  
   // Application modes
   testingMode: boolean;
   replicateEnabled: boolean;
@@ -57,6 +61,10 @@ class ConfigService {
       replicateApiToken: process.env.REPLICATE_API_TOKEN || '',
       geminiApiKey: process.env.GEMINI_API_KEY || '',
       cloudinaryUrl: process.env.CLOUDINARY_URL,
+      
+      // Payment Configuration (Razorpay)
+      razorpayKeyId: process.env.TEST_KEY_ID || '',
+      razorpayKeySecret: process.env.TEST_KEY_SECRET || '',
       
       // Application modes
       testingMode: process.env.TESTING_MODE === 'true',

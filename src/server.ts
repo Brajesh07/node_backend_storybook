@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { configService } from './config';
 import routes from './routes';
 
@@ -14,8 +15,9 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.razorpay.com", "https://lumberjack.razorpay.com"],
     },
   },
 }));
@@ -49,8 +51,16 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Static file serving for test pages
+app.use('/public', express.static(path.join(__dirname, '../public')));
+
 // API routes
 app.use('/api', routes);
+
+// Checkout test page
+app.get('/checkout-test', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/checkout-test.html'));
+});
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -58,7 +68,12 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Storybook Backend API is running!',
     version: '1.0.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    links: {
+      checkoutTest: `http://localhost:${configService.config.port}/checkout-test`,
+      api: `http://localhost:${configService.config.port}/api`,
+      health: `http://localhost:${configService.config.port}/api/health`
+    }
   });
 });
 
@@ -101,6 +116,7 @@ const server = app.listen(configService.config.port, () => {
   console.log(`🎨 Replicate Enabled: ${configService.config.replicateEnabled}`);
   console.log(`🌐 CORS Origin: ${configService.config.corsOrigin}`);
   console.log(`📱 Access API at: http://localhost:${configService.config.port}`);
+  console.log(`💳 Test Checkout at: http://localhost:${configService.config.port}/checkout-test`);
 });
 
 // Graceful shutdown
