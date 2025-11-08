@@ -109,23 +109,23 @@ export class StoryAnalysisService {
   /**
    * Generate a character prompt for a specific chapter (LEGACY/SIMPLIFIED VERSION)
    * NOTE: For production use, prefer buildChapterSpecificPrompt() which generates
-   * more detailed prompts with full 2D flat style specifications.
+   * more detailed prompts with full NanoBanana model specifications.
    * This method is kept for backwards compatibility and quick testing.
    */
   generateChapterPrompt(age: number, gender: string, chapterNumber: number, chapterElements: ChapterElements): string {
-    // Base character prompt with 2D flat style emphasis
-    let characterPrompt = `A ${age}-year-old ${gender} character in flat 2D illustration style ${chapterElements.chapterText ? 'in ' + chapterElements.chapterText.substring(0, 100) : ''}`;
+    // Base character prompt with 3D digital sketch style
+    let characterPrompt = `A ${age}-year-old ${gender} character in 3D digital sketch style ${chapterElements.chapterText ? 'in ' + chapterElements.chapterText.substring(0, 100) : ''}`;
 
     // Age-appropriate styling
     let ageStyle: string;
     if (age <= 4) {
-      ageStyle = "toddler proportions with large head, chubby cheeks, innocent expression, rendered with bold outlines and flat colors";
+      ageStyle = "toddler proportions with large head, chubby cheeks, innocent expression, rendered with bold outlines";
     } else if (age <= 7) {
-      ageStyle = "young child proportions with bright curious eyes, energetic posture, illustrated in graphic novel style";
+      ageStyle = "young child proportions with bright curious eyes, energetic posture, illustrated in storybook style";
     } else if (age <= 12) {
-      ageStyle = "child proportions with confident expression, adventurous spirit, shown in bold 2D cartoon style";
+      ageStyle = "child proportions with confident expression, adventurous spirit, shown in digital sketch style";
     } else {
-      ageStyle = "teen proportions with mature confident expression, heroic stance, rendered in flat digital art";
+      ageStyle = "teen proportions with mature confident expression, heroic stance, rendered in digital illustration";
     }
 
     // Chapter-specific outfit variations with 2D emphasis
@@ -161,20 +161,20 @@ export class StoryAnalysisService {
     if (chapterElements.objects.length > 0) {
       const obj = chapterElements.objects[0];
       const propMap: { [key: string]: string } = {
-        crystal: "holding a glowing crystal rendered with flat geometric facets",
-        book: "carrying a book shown with simple flat pages and bold outlines",
-        sword: "wielding a sword illustrated with clean lines and flat metallic colors",
-        wand: "holding a wand with a simple glowing tip shown as flat shapes",
-        crown: "wearing a crown rendered with geometric shapes and flat gold",
-        flower: "holding flowers shown as bold graphic shapes with flat colors"
+        crystal: "holding a glowing crystal with bold outlines",
+        book: "carrying a book with simple clean shapes",
+        sword: "wielding a sword with clean lines",
+        wand: "holding a wand with a simple glowing tip",
+        crown: "wearing a crown with geometric shapes",
+        flower: "holding flowers shown as bold graphic shapes"
       };
       props = propMap[obj] || "";
     }
 
-    // Combine elements with strong 2D flat style emphasis
+    // Combine elements with NanoBanana model style
     return `${characterPrompt}, ${ageStyle}, ${outfit}${props ? ', ' + props : ''}, in ${setting}, ` +
-      `FLAT 2D digital art style with THICK BLACK OUTLINES, cel-shaded flat colors, vibrant saturated hues, ` +
-      `friendly expression, NO 3D effects, NO realistic shading, graphic novel aesthetic`;
+      `3D plus digital sketch style with bold outlines (3-5px), solid colors, clean shapes, ` +
+      `friendly expression, magical forest atmosphere, storybook illustration`;
   }
 
   /**
@@ -687,14 +687,13 @@ export class StoryAnalysisService {
       }
     }
     
-    // Build base enhanced prompt in concise format
+    // Build base enhanced prompt in concise format for NanoBanana model
     const basePrompt = [
-      `Create a 2D flat digital caricature illustration of the person in the uploaded photo.`,
-      `Style: bold cartoon illustration with flat colors, clean outlines (3-5px), and simple geometric shapes.`,
-      `Keep their facial likeness, hair shape, and smile recognizable.`,
-      `No 3D, no gradients, no realistic shading.`,
-      `Add a soft, bright fantasy background.`,
-      `Keywords: flat-vector, children's storybook art, vibrant palette, clean outlines.`
+      `Create a 3D plus digital sketch illustration type of character in a magical forest.`,
+      `Style: bold outlines (3-5px), solid colors, clean shapes.`,
+      `Preserve facial likeness, hairstyle, proportions, and clothing.`,
+      `Scene: Standing in a bright forest clearing with warm sunlight.`,
+      `Keywords: storybook illustration, vibrant colors, expressive, magical forest.`
     ].join('\n');
     
     return {

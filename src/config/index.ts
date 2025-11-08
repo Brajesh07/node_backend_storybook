@@ -75,8 +75,8 @@ class ConfigService {
       maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880', 10), // 5MB
       
       // Model configuration
-      replicateModel: (process.env.REPLICATE_MODEL || 'black-forest-labs/flux-kontext-pro') as `${string}/${string}`,
-      replicateInputKey: process.env.REPLICATE_INPUT_KEY || 'input_image',
+      replicateModel: (process.env.REPLICATE_MODEL || 'google/nano-banana') as `${string}/${string}`,
+      replicateInputKey: process.env.REPLICATE_INPUT_KEY || 'image',
       geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       
       // Session configuration

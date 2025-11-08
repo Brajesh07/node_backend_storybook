@@ -2,7 +2,7 @@
  * Storybook Prompt Template Builder
  * Creates structured prompts for character image generation
  * Following the storybook-prompt template specification
- * Enhanced with Scene Composition for FLUX models
+ * Enhanced with Scene Composition for NanoBanana model
  */
 
 import {
@@ -24,13 +24,13 @@ export interface StorybookPromptParams {
   environment: string;
   chapterNumber?: number;
   chapterText?: string;
-  useSceneComposition?: boolean; // NEW: Enable scene composition mode
+  useSceneComposition?: boolean; // NEW: Enable scene composition mode for NanoBanana
 }
 
 /**
  * Build a storybook-style prompt for character image generation
  * Uses consistent template structure for all chapters
- * Enhanced with scene composition mode for better FLUX model understanding
+ * Enhanced with scene composition mode for better NanoBanana model understanding
  */
 export function buildStorybookPrompt({
   childName,
@@ -50,74 +50,78 @@ export function buildStorybookPrompt({
 
   const promptLines: string[] = [];
 
-  // SCENE COMPOSITION MODE (RECOMMENDED for FLUX)
+  // SCENE COMPOSITION MODE (RECOMMENDED for NanoBanana)
   if (useSceneComposition) {
-    // 1. Character Introduction
+    // 1. Character Introduction with scene narrative
     promptLines.push(
-      `Create a 2D flat digital caricature illustration of the person in the uploaded photo as ${childName}, a ${age}-year-old ${gender === 'boy' ? 'boy' : 'girl'}.`
+      `Create a 3D plus digital sketch illustration type of character named ${childName}, a ${age}-year-old ${gender === 'boy' ? 'boy' : 'girl'} in a magical forest.`
     );
 
-    // 2. Scene Composition (Visual Hierarchy)
+    // 2. Scene Description (Narrative style for NanoBanana)
     const chapterTheme = detectChapterTheme(chapterText, chapterNumber);
     const { cameraAngle, lighting } = getCameraAndLighting({ chapterNumber, chapterTheme });
     
-    const objects = extractMidgroundObjects(sceneContext);
-    const settings = extractBackgroundSettings(environment);
-
-    const sceneComposition = buildSceneComposition({
-      characterPose: visualPose,
-      emotion,
-      objects,
-      settings,
-      cameraAngle,
-      lighting
-    });
-
-    promptLines.push(sceneComposition);
+    // Build narrative scene description
+    let sceneDescription = `Scene: ${childName} ${visualPose}`;
+    
+    // Add scene context if available
+    if (sceneContext && sceneContext.trim().length > 0) {
+      sceneDescription += `, ${sceneContext}`;
+    }
+    
+    // Add environment details
+    if (environment && environment.trim().length > 0) {
+      sceneDescription += `. ${environment}`;
+    }
+    
+    // Add camera and lighting details
+    sceneDescription += `. ${cameraAngle}, ${lighting}.`;
+    
+    promptLines.push(sceneDescription);
 
     // 3. Style Specifications
     promptLines.push(
-      'Style: flat 2D vector, bold outlines (3–5 px), solid colors, no gradients, no 3D, clean shapes.'
+      'Style: bold outlines (3–5 px), solid colors, clean shapes.'
     );
 
     // 4. Likeness Preservation
     promptLines.push(
-      'Preserve facial likeness, hairstyle, and proportions from uploaded photo.'
+      'Preserve facial likeness, hairstyle, proportions, and clothing.'
     );
 
     // 5. Keywords for guidance
     promptLines.push(
-      'Keywords: storybook illustration, vibrant colors, expressive pose, flat 2D cartoon, bold outlines.'
+      `Keywords: storybook illustration, vibrant colors, expressive, magical forest, ${emotion}.`
     );
 
   } else {
-    // LEGACY MODE (Original template)
+    // LEGACY MODE (Original template - also updated for NanoBanana)
     promptLines.push(
-      `Create a 2D flat digital caricature illustration of the person in the uploaded photo as ${childName}, a ${age}-year-old ${gender === 'boy' ? 'boy' : 'girl'}.`
+      `Create a 3D plus digital sketch illustration type of character named ${childName}, a ${age}-year-old ${gender === 'boy' ? 'boy' : 'girl'} in a magical forest.`
     );
     
-    promptLines.push(`${pronoun} is ${visualPose}, ${possessive} face showing ${emotion}.`);
+    promptLines.push(`Scene: ${childName} is ${visualPose}, ${possessive} face showing ${emotion}.`);
 
     if (sceneContext && sceneContext.trim().length > 0) {
-      promptLines.push(`Around ${objectPronoun}, ${sceneContext}.`);
+      promptLines.push(`${sceneContext}.`);
     }
 
     if (environment && environment.trim().length > 0) {
-      promptLines.push(`Background: ${environment}.`);
+      promptLines.push(`${environment}.`);
     } else {
-      promptLines.push(`Background: simple colorful storybook setting.`);
+      promptLines.push(`A bright forest clearing glows with warm sunlight.`);
     }
 
     promptLines.push(
-      'Style: flat-vector children\'s storybook art, bold black outlines (3–5 px), solid colors, no gradients or realistic shading.'
+      'Style: bold outlines (3–5 px), solid colors, clean shapes.'
     );
 
     promptLines.push(
-      'Preserve facial likeness, hairstyle, and proportions from the uploaded photo.'
+      'Preserve facial likeness, hairstyle, proportions, and clothing.'
     );
 
     promptLines.push(
-      'Keywords: storybook illustration, vibrant colors, expressive pose, flat 2D cartoon, bold outlines, warm lighting.'
+      `Keywords: storybook illustration, vibrant colors, expressive, magical forest, ${emotion}.`
     );
   }
 

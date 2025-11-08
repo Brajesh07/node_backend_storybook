@@ -47,11 +47,12 @@ export class ImageProcessingService {
       const payload = {
         [configService.config.replicateInputKey]: imageUrl,
         prompt: enhancedPrompt,
-        aspect_ratio: "16:9",
-        safety_tolerance: 2
+        output_format: "jpg",
+        output_quality: 80
       };
 
       console.log(`DEBUG: Generating character image with prompt: ${enhancedPrompt.substring(0, 100)}...`);
+      console.log(`DEBUG: Using model: ${configService.config.replicateModel}`);
       
       const output = await replicate.run(configService.config.replicateModel, { input: payload });
       
@@ -228,11 +229,12 @@ export class ImageProcessingService {
         const payload = {
           [configService.config.replicateInputKey]: imageUrl,
           prompt: personalizedPrompt,
-          aspect_ratio: "16:9",
-          safety_tolerance: 2
+          output_format: "jpg",
+          output_quality: 80
         };
         
         // Generate image for this chapter
+        console.log(`DEBUG: Using model: ${configService.config.replicateModel}`);
         const output = await replicate.run(configService.config.replicateModel, { input: payload });
         
         // Handle FileOutput object

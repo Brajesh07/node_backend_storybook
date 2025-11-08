@@ -1,7 +1,7 @@
 /**
- * Scene Composition Builder for FLUX Models
+ * Scene Composition Builder for NanoBanana Model
  * Provides visual hierarchy and scene layout information
- * that FLUX models understand better than prose
+ * that NanoBanana model understands better than prose
  */
 
 export interface SceneCompositionElements {
@@ -19,7 +19,7 @@ export interface ChapterContext {
 }
 
 /**
- * Build structured scene composition for FLUX model
+ * Build structured scene composition for NanoBanana model
  * Provides foreground, midground, background hierarchy
  */
 export function buildSceneComposition(elements: SceneCompositionElements): string {

@@ -293,84 +293,156 @@ export class PDFGeneratorService {
 <head>
     <meta charset="UTF-8">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
             font-family: ${fontFamily};
             line-height: 1.6;
             color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
         }
-        .title {
+        
+        /* Cover Page */
+        .cover-page {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            page-break-after: always;
+            padding: 40px;
+        }
+        .cover-title {
             text-align: center;
-            font-size: 32px;
+            font-size: 48px;
             font-weight: bold;
-            color: #2c3e50;
+            color: white;
             margin-bottom: 40px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
         }
-        .chapter {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-            padding: 20px 0;
+        .cover-image {
+            max-width: 400px;
+            max-height: 400px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 60px;
         }
-        .chapter-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #3498db;
-            margin-bottom: 15px;
+        .cover-footer {
             text-align: center;
-            padding: 10px 0;
-            border-bottom: 2px solid #3498db;
+            color: white;
+            font-size: 18px;
+            margin-top: auto;
+        }
+        .cover-logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        /* Chapter Pages */
+        .chapter-page {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            page-break-after: always;
+            padding: 40px;
         }
         .chapter-image {
-            display: block;
-            margin: 15px auto;
-            max-width: 280px;
-            max-height: 280px;
-            border-radius: 12px;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+            width: 100%;
+            max-height: 50vh;
+            object-fit: contain;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
         }
         .chapter-text {
-            font-size: 14px;
-            line-height: 1.9;
+            font-size: 16px;
+            line-height: 1.8;
             text-align: justify;
-            margin: 20px 0;
-            padding: 0 10px;
-            min-height: 100px;
+            color: #2c3e50;
+            padding: 0 20px;
         }
-        .footer {
+        
+        /* Back Cover */
+        .back-cover {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            padding: 40px;
+            position: relative;
+        }
+        .back-cover-image {
+            max-width: 400px;
+            max-height: 400px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        .back-cover-content {
             text-align: center;
-            font-size: 12px;
-            color: #7f8c8d;
-            margin-top: 50px;
-            font-style: italic;
+            color: white;
+            font-size: 18px;
+            line-height: 1.6;
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
         }
+        .back-cover-content h3 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
         .page-break {
             page-break-after: always;
         }
     </style>
 </head>
 <body>
-    <div class="title">${childName}'s Adventure Story</div>
+    <!-- Cover Page -->
+    <div class="cover-page">
+        <div class="cover-title">${childName}'s Adventure Story</div>
+        ${chapterImagesWithBase64[0]?.imageBase64 ? `<img src="${chapterImagesWithBase64[0].imageBase64}" alt="Cover" class="cover-image">` : ''}
+        <div class="cover-footer">
+            <div class="cover-logo">✨ Personalized Story Book ✨</div>
+            <div>Created with AI Magic</div>
+        </div>
+    </div>
     
+    <!-- Chapter Pages -->
     ${chapterImagesWithBase64.map((chapter, index) => {
       console.log(`DEBUG: Rendering chapter ${chapter.chapterNumber} in PDF`);
       console.log(`DEBUG: Chapter has image: ${!!chapter.imageBase64}`);
       console.log(`DEBUG: Chapter text length: ${chapter.fullChapterText?.length || 0}`);
       
       return `
-        <div class="chapter">
-            <div class="chapter-title">Chapter ${chapter.chapterNumber}</div>
-            ${chapter.imageBase64 ? `<img src="${chapter.imageBase64}" alt="Chapter ${chapter.chapterNumber}" class="chapter-image">` : '<div style="text-align: center; color: #999; margin: 20px;">Character Image Loading...</div>'}
+        <div class="chapter-page">
+            ${chapter.imageBase64 ? `<img src="${chapter.imageBase64}" alt="Chapter ${chapter.chapterNumber}" class="chapter-image">` : '<div style="text-align: center; color: #999; padding: 100px 0;">Character Image Loading...</div>'}
             <div class="chapter-text">${this.formatChapterText(chapter.fullChapterText || `Chapter ${chapter.chapterNumber} content is being prepared...`)}</div>
-            ${index < chapterImagesWithBase64.length - 1 ? '<div class="page-break"></div>' : ''}
         </div>
       `;
     }).join('')}
     
-    <div class="footer">
-        Created with love for ${childName} by ${parentName}
+    <!-- Back Cover -->
+    <div class="back-cover">
+        ${chapterImagesWithBase64[chapterImagesWithBase64.length - 1]?.imageBase64 ? `<img src="${chapterImagesWithBase64[chapterImagesWithBase64.length - 1].imageBase64}" alt="Back Cover" class="back-cover-image">` : ''}
+        <div class="back-cover-content">
+            <h3>✨ The End ✨</h3>
+            <p>Created with love for ${childName}</p>
+            <p>by ${parentName}</p>
+            <p style="margin-top: 20px; font-style: italic;">Every child deserves their own magical adventure</p>
+        </div>
     </div>
 </body>
 </html>`;
